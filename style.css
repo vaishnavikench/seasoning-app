@@ -1,5 +1,63 @@
-body { font-family: sans-serif; text-align: center; margin: 20px; }
-video, canvas { width: 90%; border: 1px solid #888; border-radius: 8px; margin: 8px 0; }
-button { padding: 12px 18px; margin: 8px; font-size: 16px; border-radius: 8px; }
-.menu button { width: 80%; }
+/* styles.css */
+body {
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: #fafafa;
+  margin: 0;
+  padding: 0;
+  color: #222;
+  -webkit-font-smoothing:antialiased;
+}
+
+.container {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.title {
+  font-size: 26px;
+  margin: 0 0 8px 0;
+  color: #222;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 84%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.action-btn {
+  padding: 14px 18px;
+  font-size: 17px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(180deg,#ff8a1a,#ff6a00);
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(255,106,0,0.18);
+}
+
+.action-btn:active { transform: translateY(1px); }
+
+video, canvas, img {
+  width: 90vw;
+  max-width: 420px;
+  border-radius: 12px;
+  margin: 12px auto;
+  display: block;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.controls { text-align:center; margin-top:12px; }
+
+.small { color:#666; font-size:13px; margin-top:8px; }
+
 
