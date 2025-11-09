@@ -1,33 +1,5 @@
-body {
-  font-family: Arial, sans-serif;
-  text-align: center;
-  margin: 0;
-  background: #ffffff;
-}
+body { font-family: sans-serif; text-align: center; margin: 20px; }
+video, canvas { width: 90%; border: 1px solid #888; border-radius: 8px; margin: 8px 0; }
+button { padding: 12px 18px; margin: 8px; font-size: 16px; border-radius: 8px; }
+.menu button { width: 80%; }
 
-#video, #preview {
-  width: 90vw;
-  max-width: 420px;
-  border-radius: 12px;
-  margin-top: 12px;
-}
-
-canvas {
-  display: none;
-}
-
-button {
-  margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: none;
-  background: #ff6a00;
-  color: #fff;
-  font-weight: 600;
-}
-
-#coverage {
-  margin-top: 14px;
-  font-size: 20px;
-  font-weight: bold;
-}
