@@ -1,52 +1,57 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="style.css">
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload Image — Seasoning</title>
+  <link rel="stylesheet" href="styles.css">
+  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 </head>
 <body>
-<h2>Upload Image Seasoning Analysis</h2>
 
-<input type="file" id="upload" accept="image/*">
+<h2 style="text-align:center;margin-top:18px;">Upload Image</h2>
 
-<img id="preview" />
+<div style="text-align:center;">
+  <input type="file" id="fileInput" accept="image/*">
+</div>
 
-<canvas id="canvas"></canvas>
-<canvas id="overlay"></canvas>
+<!-- preview + overlay -->
+<div style="position:relative; display:flex; justify-content:center; margin-top:12px;">
+  <img id="previewImg" style="display:none; border-radius:12px;" />
+  <canvas id="overlayCanvas" style="position:absolute; left:50%; transform:translateX(-50%);"></canvas>
+</div>
 
-<div id="coverage">Coverage: —</div>
+<div class="controls">
+  <button onclick="location.href='index.html'">⬅ Back</button>
+  <div class="small">Upload a top-down image of a single collet for best accuracy.</div>
+</div>
 
-<a href="capture.html">← Back to Live Camera</a>
+<div id="result" style="text-align:center;margin-top:12px;font-weight:700">Coverage: —</div>
 
-<script type="module">
-import { analyzeImage } from "./analysis.js";
+<script src="analysis.js"></script>
 
-const upload = document.getElementById('upload');
-const preview = document.getElementById('preview');
+<script>
+const fileInput = document.getElementById('fileInput');
+const previewImg = document.getElementById('previewImg');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const resultEl = document.getElementById('result');
 
-const canvas = document.getElementById('canvas');
-const overlay = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
-const octx = overlay.getContext('2d');
-const coverageLbl = document.getElementById('coverage');
-
-upload.onchange = (e)=>{
-  const imgURL = URL.createObjectURL(e.target.files[0]);
-  const img = new Image();
-  img.onload = ()=>{
-    preview.src = imgURL;
-
-    canvas.width = img.width;
-    canvas.height = img.height;
-    overlay.width = img.width;
-    overlay.height = img.height;
-
-    ctx.drawImage(img,0,0);
-    analyzeImage(ctx,octx,img.width,img.height,coverageLbl);
+fileInput.onchange = (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  previewImg.onload = async ()=>{
+    // size overlay to image natural size
+    overlayCanvas.width = previewImg.naturalWidth;
+    overlayCanvas.height = previewImg.naturalHeight;
+    overlayCanvas.style.width = previewImg.clientWidth + 'px';
+    overlayCanvas.style.height = previewImg.clientHeight + 'px';
+    await analyzeElementAndShow(previewImg, overlayCanvas, resultEl);
   };
-  img.src = imgURL;
+  previewImg.src = url;
+  previewImg.style.display = 'block';
 };
 </script>
 
 </body>
 </html>
+
