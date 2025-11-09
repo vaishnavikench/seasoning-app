@@ -20,7 +20,7 @@ h1, h2 {
   color: #333;
 }
 
-.live-section, .result-section {
+.upload-section, .live-section, .result-section {
   margin-top: 20px;
   text-align: center;
 }
@@ -50,3 +50,4 @@ video {
   border-radius: 10px;
   border: 2px solid #ccc;
 }
+
