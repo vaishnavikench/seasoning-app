@@ -14,12 +14,14 @@ navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment
     .then(stream => video.srcObject = stream);
 });
 
-function onOpenCvReady() {
-    console.log('OpenCV.js ready');
+// Wait for OpenCV.js to load
+cv['onRuntimeInitialized'] = function() {
+    console.log("OpenCV.js ready");
     startVideoProcessing();
-}
+};
 
-function analyzeFrame(src) {
+// Analyze a single frame
+function analyzeFrame(src){
     let triangleMask = new cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC1);
 
     // Grayscale + edges
@@ -49,34 +51,28 @@ function analyzeFrame(src) {
                 triangleContour = approx;
             }
         }
+        approx.delete();
     }
 
     if(!triangleContour){
-        // If no triangle, skip overlay
         gray.delete(); blur.delete(); edges.delete(); contours.delete(); hierarchy.delete();
         return;
     }
 
     cv.fillPoly(triangleMask, new cv.MatVector([triangleContour]), new cv.Scalar(255));
 
-    // HSV conversion
+    // Convert to HSV
     let hsv = new cv.Mat();
     cv.cvtColor(src, hsv, cv.COLOR_RGBA2HSV);
 
-    // Masks for seasoned colors
-    let lowerRed1 = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[0,50,50,0]);
-    let upperRed1 = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[10,255,255,255]);
-    let lowerRed2 = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[160,50,50,0]);
-    let upperRed2 = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[180,255,255,255]);
-    let lowerOrange = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[11,50,50,0]);
-    let upperOrange = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[25,255,255,255]);
-    let lowerYellow = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[26,50,50,0]);
-    let upperYellow = new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[35,255,255,255]);
+    // Masks for red/orange/yellow (seasoned)
+    let maskRed1 = new cv.Mat(); let maskRed2 = new cv.Mat();
+    let maskOrange = new cv.Mat(); let maskYellow = new cv.Mat();
 
-    let maskRed1 = new cv.Mat(); cv.inRange(hsv, lowerRed1, upperRed1, maskRed1);
-    let maskRed2 = new cv.Mat(); cv.inRange(hsv, lowerRed2, upperRed2, maskRed2);
-    let maskOrange = new cv.Mat(); cv.inRange(hsv, lowerOrange, upperOrange, maskOrange);
-    let maskYellow = new cv.Mat(); cv.inRange(hsv, lowerYellow, upperYellow, maskYellow);
+    cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[0,50,50,0]), new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[10,255,255,255]), maskRed1);
+    cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[160,50,50,0]), new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[180,255,255,255]), maskRed2);
+    cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[11,50,50,0]), new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[25,255,255,255]), maskOrange);
+    cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[26,50,50,0]), new cv.Mat(hsv.rows,hsv.cols,hsv.type(),[35,255,255,255]), maskYellow);
 
     let seasonedMask = new cv.Mat();
     cv.bitwise_or(maskRed1, maskRed2, seasonedMask);
@@ -85,6 +81,7 @@ function analyzeFrame(src) {
 
     cv.bitwise_and(seasonedMask, triangleMask, seasonedMask);
 
+    // Unseasoned = triangle - seasoned
     let unseasonedMask = new cv.Mat();
     cv.bitwise_not(seasonedMask, unseasonedMask);
     cv.bitwise_and(unseasonedMask, triangleMask, unseasonedMask);
@@ -95,14 +92,15 @@ function analyzeFrame(src) {
     let percent = totalTriangle>0 ? (seasonedCount/totalTriangle*100).toFixed(2) : 0;
     percentageDiv.innerText = `Seasoning %: ${percent}%`;
 
-    // Overlay colors
+    // Overlay colors: red = seasoned, blue = unseasoned
     for(let i=0;i<src.rows;i++){
         for(let j=0;j<src.cols;j++){
             if(triangleMask.ucharPtr(i,j)[0]===0) continue;
+            let px = src.ucharPtr(i,j);
             if(seasonedMask.ucharPtr(i,j)[0]!==0){
-                src.ucharPtr(i,j)[0]=255; src.ucharPtr(i,j)[1]=0; src.ucharPtr(i,j)[2]=0;
+                px[0]=255; px[1]=0; px[2]=0; px[3]=255; // red
             } else {
-                src.ucharPtr(i,j)[0]=255; src.ucharPtr(i,j)[1]=255; src.ucharPtr(i,j)[2]=0;
+                px[0]=0; px[1]=0; px[2]=255; px[3]=255; // blue
             }
         }
     }
@@ -116,6 +114,7 @@ function analyzeFrame(src) {
     seasonedMask.delete(); unseasonedMask.delete();
 }
 
+// Real-time live processing
 function startVideoProcessing(){
     function processFrame(){
         if(video.readyState===video.HAVE_ENOUGH_DATA){
