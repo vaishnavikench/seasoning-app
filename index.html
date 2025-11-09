@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mad Angles Seasoning Detection</title>
+    <style>
+        body { font-family: Arial; background: #f8f9fa; text-align: center; }
+        .container { margin-top: 50px; }
+        input, button { padding: 10px 20px; margin: 10px; }
+        img { max-width: 400px; margin-top: 20px; border: 2px solid #ccc; }
+        .result { font-size: 24px; margin-top: 20px; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Mad Angles Seasoning Detection</h1>
+        <input type="file" id="uploadImage">
+        <br>
+        <button onclick="captureFromCamera()">Capture from Camera</button>
+        <div class="result" id="coverageText"></div>
+        <img id="resultImg" src="" alt="">
+    </div>
+
+    <script>
+        const uploadInput = document.getElementById('uploadImage');
+        uploadInput.addEventListener('change', () => {
+            const file = uploadInput.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+            fetch('/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('resultImg').src = 'data:image/jpeg;base64,' + data.image;
+                document.getElementById('coverageText').innerText = 'Seasoning Coverage: ' + data.coverage + '%';
+            });
+        });
+
+        function captureFromCamera() {
+            alert("Camera live capture will be implemented in next step (POC). Currently upload works.");
+        }
+    </script>
+</body>
+</html>
