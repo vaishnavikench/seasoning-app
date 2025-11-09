@@ -1,70 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-    <title>Mad Angles Seasoning Detection</title>
-    <style>
-        body { font-family: Arial; background: #f8f9fa; text-align: center; }
-        .container { margin-top: 50px; }
-        input, button { padding: 10px 20px; margin: 10px; }
-        video, canvas, img { max-width: 400px; margin-top: 20px; border: 2px solid #ccc; }
-        .result { font-size: 24px; margin-top: 20px; color: #333; }
-    </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seasoning Coverage Checker</title>
+<style>
+body { font-family: Arial; text-align:center; margin:0; background:#fff; }
+#video, #uploadedImg { width: 90vw; max-width: 420px; border-radius: 12px; margin-top:12px; }
+#overlay { position:absolute; top:0; left:0; pointer-events:none; }
+button { margin-top:12px; padding:10px 14px; border-radius:8px; border:none; background:#ff6a00; color:#fff; font-weight:600; }
+#coverage { margin-top:12px; font-size:20px; font-weight:bold; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Mad Angles Seasoning Detection</h1>
-        <input type="file" id="uploadImage">
-        <br>
-        <button onclick="startCamera()">Start Camera</button>
-        <button onclick="captureImage()">Capture</button>
-        <br>
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        <img id="resultImg" src="" alt="">
-        <div class="result" id="coverageText"></div>
-    </div>
 
-    <script>
-        const uploadInput = document.getElementById('uploadImage');
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
+<h2>Seasoning Coverage Checker</h2>
 
-        uploadInput.addEventListener('change', () => {
-            const file = uploadInput.files[0];
-            const formData = new FormData();
-            formData.append('image', file);
-            fetch('/upload', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('resultImg').src = 'data:image/jpeg;base64,' + data.image;
-                document.getElementById('coverageText').innerText = 'Seasoning Coverage: ' + data.coverage + '%';
-            });
-        });
+<video id="video" autoplay playsinline muted></video>
+<input type="file" id="upload" accept="image/*">
 
-        function startCamera() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => { video.srcObject = stream; })
-                .catch(err => alert('Camera access denied: ' + err));
+<canvas id="canvas" style="display:none"></canvas>
+<canvas id="overlay"></canvas>
+
+<button id="captureBtn">Capture / Analyze</button>
+
+<div id="coverage">Coverage: —</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const overlay = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const octx = overlay.getContext('2d');
+const coverageLbl = document.getElementById('coverage');
+
+navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+.then(stream => video.srcObject = stream);
+
+function analyze(imgW, imgH){
+    const imgData = ctx.getImageData(0,0,imgW,imgH).data;
+    let chipMask = new Uint8Array(imgW*imgH);
+    let seasoningMask = new Uint8Array(imgW*imgH);
+
+    function rgbToHsv(r,g,b){
+        r/=255; g/=255; b/=255;
+        const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+        let h=0,s=max?d/max:0,v=max;
+        if(d!==0){
+            if(max===r) h=((g-b)/d)%6;
+            else if(max===g) h=(b-r)/d+2;
+            else h=(r-g)/d+4;
+            h*=60; if(h<0) h+=360;
         }
+        return [h,s*100,v*100];
+    }
 
-        function captureImage() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const context = canvas.getContext('2d');
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL('image/jpeg');
+    for(let i=0,k=0;i<imgData.length;i+=4,k++){
+        const r=imgData[i], g=imgData[i+1], b=imgData[i+2];
+        const [h,s,v] = rgbToHsv(r,g,b);
 
-            fetch('/capture', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ imageBase64: dataUrl })
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('resultImg').src = 'data:image/jpeg;base64,' + data.image;
-                document.getElementById('coverageText').innerText = 'Seasoning Coverage: ' + data.coverage + '%';
-            });
+        // chip is higher saturation than napkin
+        if(s > 18) chipMask[k] = 1;
+
+        // seasoning = darker OR more saturated inside chip
+        if(chipMask[k] && (s > 35 || v < 65)) seasoningMask[k] = 1;
+    }
+
+    // Count
+    let chipCount = chipMask.reduce((a,b)=>a+b,0);
+    let seasonCount = seasoningMask.reduce((a,b)=>a+b,0);
+    let cov = chipCount ? (seasonCount/chipCount*100).toFixed(1) : 0;
+
+    // Draw overlay
+    overlay.width = imgW; overlay.height = imgH;
+    octx.clearRect(0,0,imgW,imgH);
+    octx.fillStyle = "rgba(255,0,0,0.5)";
+    for(let y=0;y<imgH;y++){
+        for(let x=0;x<imgW;x++){
+            let k=y*imgW+x;
+            if(seasoningMask[k]) octx.fillRect(x,y,1,1);
         }
-    </script>
+    }
+
+    coverageLbl.textContent = `Coverage: ${cov}%`;
+}
+
+document.getElementById("captureBtn").onclick = ()=>{
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0);
+    analyze(canvas.width, canvas.height);
+};
+
+document.getElementById("upload").onchange = (e)=>{
+    const imgURL = URL.createObjectURL(e.target.files[0]);
+    const img = new Image();
+    img.onload = ()=>{
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img,0,0);
+        analyze(img.width,img.height);
+    };
+    img.src = imgURL;
+};
+</script>
+
 </body>
 </html>
