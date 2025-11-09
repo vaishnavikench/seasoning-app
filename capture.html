@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h2>Live Seasoning Coverage</h2>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+<canvas id="overlay"></canvas>
+
+<button id="captureBtn">Capture & Analyze</button>
+
+<div id="coverage">Coverage: —</div>
+
+<a href="upload.html">Go to Upload Image →</a>
+
+<script type="module">
+import { analyzeImage } from "./analysis.js";
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const overlay = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const octx = overlay.getContext('2d');
+const coverageLbl = document.getElementById('coverage');
+
+navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
+.then(stream => video.srcObject = stream);
+
+document.getElementById("captureBtn").onclick = () => {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  overlay.width = canvas.width;
+  overlay.height = canvas.height;
+
+  ctx.drawImage(video,0,0);
+  analyzeImage(ctx,octx,canvas.width,canvas.height,coverageLbl);
+};
+</script>
+
+</body>
+</html>
