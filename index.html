@@ -1,35 +1,384 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collet Seasoning Detector</title>
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>Pocket Seasoning Coverage Checker</title>
+<style>
+  body { font-family: system-ui, -apple-system, Roboto, "Helvetica Neue", Arial; margin:0; padding:12px; background:#fafafa; color:#111; }
+  h1 { font-size:18px; margin:0 0 8px 0; }
+  .top { display:flex; gap:12px; align-items:center; }
+  video { width: 48vw; max-width:260px; border-radius:8px; background:#222; }
+  canvas { display:none; }
+  .preview { position:relative; width:48vw; max-width:260px; height:auto; }
+  #maskCanvas { position:absolute; left:0; top:0; pointer-events:none; border-radius:8px; }
+  .controls { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  button { padding:8px 12px; border-radius:6px; border: none; background:#0b63d6; color:white; font-weight:600; }
+  button:disabled { background:#9bbcf0; }
+  .small { font-size:12px; padding:6px 8px; }
+  .sliders { margin-top:10px; display:grid; gap:8px; grid-template-columns:1fr 60px; align-items:center; }
+  label { font-size:12px; }
+  input[type=range] { width:100%; }
+  #results { margin-top:12px; font-weight:700; }
+  .footer { margin-top:14px; font-size:12px; color:#555; }
+  .guide { position:absolute; left:0; top:0; border:2px dashed #2ecc71; width:100%; height:100%; border-radius:8px; box-sizing:border-box; pointer-events:none; opacity:0.9; }
+  .row { display:flex; gap:8px; align-items:center; }
+</style>
 </head>
 <body>
-<div class="container">
-  <h1>Mad Angle Collet Seasoning Detector</h1>
-
-  <div class="upload-section">
-    <h2>Upload Image</h2>
-    <input type="file" id="fileInput" accept="image/*">
-    <button id="uploadBtn">Analyze</button>
+  <h1>Pocket Seasoning Coverage Checker</h1>
+  <div class="top">
+    <div class="preview">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="maskCanvas"></canvas>
+      <div class="guide"></div>
+    </div>
+    <div style="flex:1">
+      <div class="row">
+        <button id="captureBtn">Capture & Analyze</button>
+        <button id="saveBtn" class="small" disabled>Save Result</button>
+        <button id="flipBtn" class="small">Flip Camera</button>
+      </div>
+      <div id="results">Coverage: —</div>
+      <div style="margin-top:8px; font-size:12px; color:#333;">Place products inside green frame. Use sliders to tune detection if needed.</div>
+    </div>
   </div>
 
-  <div class="live-section">
-    <h2>Live Camera</h2>
-    <video id="video" autoplay playsinline width="320" height="240"></video>
+  <canvas id="hiddenCanvas" width="256" height="256"></canvas>
+
+  <div style="margin-top:10px;">
+    <strong>Tune detection (helps under different lighting / SKUs)</strong>
+    <div class="sliders">
+      <label>Hₗ</label><input id="hLow" type="range" min="0" max="360" value="10">
+      <label>Hᵤ</label><input id="hHigh" type="range" min="0" max="360" value="40">
+      <label>Sₗ</label><input id="sLow" type="range" min="0" max="100" value="18">
+      <label>Sᵤ</label><input id="sHigh" type="range" min="0" max="100" value="90">
+      <label>Vₗ</label><input id="vLow" type="range" min="0" max="100" value="30">
+      <label>Vᵤ</label><input id="vHigh" type="range" min="0" max="100" value="100">
+    </div>
+    <div style="margin-top:8px; font-size:12px; color:#444;">
+      H = hue (0–360), S = saturation %, V = brightness %. Adjust to target the seasoning color. If seasoning is light, raise Vₗ.
+    </div>
   </div>
 
-  <div class="result-section">
-    <h2>Result</h2>
-    <div id="percentage">Seasoning %: --</div>
-    <canvas id="canvas"></canvas>
+  <div class="footer">
+    Logs saved to browser storage. This app runs fully on-device (no internet required).
   </div>
-</div>
 
-<script async src="https://docs.opencv.org/4.8.1/opencv.js"></script>
-<script src="script.js"></script>
+<script>
+(async () => {
+  // Elements
+  const video = document.getElementById('video');
+  const hiddenCanvas = document.getElementById('hiddenCanvas');
+  const maskCanvas = document.getElementById('maskCanvas');
+  const captureBtn = document.getElementById('captureBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const resultsText = document.getElementById('results');
+  const flipBtn = document.getElementById('flipBtn');
+  const ctx = hiddenCanvas.getContext('2d');
+  const mctx = maskCanvas.getContext('2d');
+
+  // Sliders
+  const hLow = document.getElementById('hLow');
+  const hHigh = document.getElementById('hHigh');
+  const sLow = document.getElementById('sLow');
+  const sHigh = document.getElementById('sHigh');
+  const vLow = document.getElementById('vLow');
+  const vHigh = document.getElementById('vHigh');
+
+  let useFacingMode = 'environment';
+  let stream = null;
+  let lastResult = null;
+
+  async function startCamera() {
+    if (stream) {
+      stream.getTracks().forEach(t=>t.stop());
+      stream = null;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: useFacingMode }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      // size mask canvas to video size (but we will scale to square hidden canvas for processing)
+      setTimeout(() => {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const displayW = Math.min(260, window.innerWidth*0.48);
+        const aspect = vw / vh || 1;
+        const displayH = displayW / aspect;
+        maskCanvas.style.width = displayW + 'px';
+        maskCanvas.style.height = displayH + 'px';
+        maskCanvas.width = hiddenCanvas.width;
+        maskCanvas.height = hiddenCanvas.height;
+      }, 200);
+    } catch (e) {
+      alert('Camera access required. Error: ' + e.message);
+    }
+  }
+
+  // utility: convert RGB to HSV (h in 0..360, s,v in 0..1)
+  function rgbToHsv(r,g,b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    let h=0, s=0, v = max;
+    const d = max - min;
+    s = max === 0 ? 0 : d / max;
+    if (max !== min) {
+      switch(max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h = h * 60;
+    } else h = 0;
+    return [h, s, v];
+  }
+
+  // product area detection: simple adaptive threshold on luminance then fill holes
+  function detectProductMask(imageData, W, H) {
+    const data = imageData.data;
+    const mask = new Uint8ClampedArray(W*H);
+    // compute luminance and simple threshold
+    let sum=0;
+    for (let i=0;i<W*H;i++){
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+      const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+      sum += lum;
+    }
+    const meanLum = sum / (W*H);
+    const thresh = meanLum * 0.95; // product often darker than background; tune if needed
+    for (let i=0;i<W*H;i++){
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+      const lum = 0.2126*r + 0.7152*g + 0.0722*b;
+      mask[i] = (lum < thresh) ? 1 : 0;
+    }
+    // small morphological operations: remove small islands, fill small holes
+    // simple connected component filter (keep largest component)
+    const visited = new Uint8Array(W*H);
+    const comps = [];
+    const stack = [];
+    for (let i=0;i<W*H;i++){
+      if (visited[i] || mask[i]===0) continue;
+      // flood fill
+      let area = 0;
+      stack.push(i);
+      visited[i]=1;
+      while (stack.length){
+        const idx = stack.pop();
+        area++;
+        const x = idx % W;
+        const y = Math.floor(idx / W);
+        // neighbors 4-connected
+        const nbs = [];
+        if (x>0) nbs.push(idx-1);
+        if (x<W-1) nbs.push(idx+1);
+        if (y>0) nbs.push(idx-W);
+        if (y<H-1) nbs.push(idx+W);
+        for (const nb of nbs){
+          if (!visited[nb] && mask[nb]===1){
+            visited[nb]=1;
+            stack.push(nb);
+          }
+        }
+      }
+      comps.push(area);
+    }
+    if (comps.length===0) return mask; // nothing found
+    // find largest component threshold
+    const maxArea = Math.max(...comps);
+    // second pass: keep components with area > 0.2*maxArea
+    visited.fill(0);
+    const out = new Uint8ClampedArray(W*H);
+    for (let i=0;i<W*H;i++){
+      if (visited[i] || mask[i]===0) continue;
+      let area = 0;
+      const nodes = [];
+      stack.push(i);
+      visited[i]=1;
+      while (stack.length){
+        const idx = stack.pop();
+        nodes.push(idx);
+        area++;
+        const x = idx % W;
+        const y = Math.floor(idx / W);
+        const nbs = [];
+        if (x>0) nbs.push(idx-1);
+        if (x<W-1) nbs.push(idx+1);
+        if (y>0) nbs.push(idx-W);
+        if (y<H-1) nbs.push(idx+W);
+        for (const nb of nbs){
+          if (!visited[nb] && mask[nb]===1){
+            visited[nb]=1;
+            stack.push(nb);
+          }
+        }
+      }
+      if (area >= 0.2 * maxArea) {
+        for (const n of nodes) out[n]=1;
+      }
+    }
+    return out;
+  }
+
+  // seasoning mask via HSV thresholding within product area
+  function detectSeasoningMask(imageData, productMask, W, H, thresholds) {
+    const data = imageData.data;
+    const sMask = new Uint8ClampedArray(W*H);
+    const hL = thresholds.hLow, hH = thresholds.hHigh;
+    const sL = thresholds.sLow/100, sH = thresholds.sHigh/100;
+    const vL = thresholds.vLow/100, vH = thresholds.vHigh/100;
+    for (let i=0;i<W*H;i++){
+      if (!productMask[i]) continue;
+      const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+      const [h,s,v] = rgbToHsv(r,g,b);
+      // handle hue wrap
+      let hueOk = false;
+      if (hL <= hH) hueOk = (h >= hL && h <= hH);
+      else hueOk = (h >= hL || h <= hH); // wrap-around case
+      if (hueOk && s >= sL && s <= sH && v >= vL && v <= vH) sMask[i] = 1;
+    }
+    // optional: small morphological fill (not implemented for perf)
+    return sMask;
+  }
+
+  // draw overlay mask to maskCanvas
+  function drawOverlay(productMask, sMask, W, H) {
+    mctx.clearRect(0,0,maskCanvas.width, maskCanvas.height);
+    const img = mctx.createImageData(W, H);
+    for (let i=0;i<W*H;i++){
+      const off = i*4;
+      if (sMask[i]) {
+        img.data[off+0] = 255; // red for seasoning
+        img.data[off+1] = 50;
+        img.data[off+2] = 50;
+        img.data[off+3] = 160;
+      } else if (productMask[i]) {
+        img.data[off+0] = 0;
+        img.data[off+1] = 0;
+        img.data[off+2] = 0;
+        img.data[off+3] = 0;
+      } else {
+        img.data[off+3] = 0;
+      }
+    }
+    // scale to canvas display size
+    // paint into temp canvas then scale draw
+    const tmp = document.createElement('canvas');
+    tmp.width = W; tmp.height = H;
+    tmp.getContext('2d').putImageData(img,0,0);
+    // clear & draw scaled
+    mctx.clearRect(0,0,maskCanvas.width, maskCanvas.height);
+    mctx.drawImage(tmp, 0, 0, maskCanvas.width, maskCanvas.height);
+  }
+
+  // compute coverage %
+  function computeCoverage(productMask, sMask) {
+    let p=0, s=0;
+    const N = productMask.length;
+    for (let i=0;i<N;i++){
+      if (productMask[i]) { p++; if (sMask[i]) s++; }
+    }
+    if (p===0) return {coverage:0, productArea:p, seasoningArea:s};
+    return {coverage: (s/p)*100, productArea:p, seasoningArea:s};
+  }
+
+  // main capture+analyze
+  captureBtn.addEventListener('click', async () => {
+    captureBtn.disabled = true;
+    resultsText.textContent = 'Analyzing...';
+    // draw current video frame scaled to hidden canvas (square)
+    const W = hiddenCanvas.width, H = hiddenCanvas.height;
+    // center-crop from video to square
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) { alert('Video not ready'); captureBtn.disabled=false; return; }
+    const side = Math.min(vw, vh);
+    const sx = Math.max(0, (vw - side) / 2);
+    const sy = Math.max(0, (vh - side) / 2);
+    ctx.drawImage(video, sx, sy, side, side, 0, 0, W, H);
+    const imageData = ctx.getImageData(0,0,W,H);
+    // product mask
+    const productMask = detectProductMask(imageData, W, H);
+    // seasoning mask
+    const thresholds = {
+      hLow: parseFloat(hLow.value),
+      hHigh: parseFloat(hHigh.value),
+      sLow: parseFloat(sLow.value),
+      sHigh: parseFloat(sHigh.value),
+      vLow: parseFloat(vLow.value),
+      vHigh: parseFloat(vHigh.value)
+    };
+    const sMask = detectSeasoningMask(imageData, productMask, W, H, thresholds);
+    const res = computeCoverage(productMask, sMask);
+    drawOverlay(productMask, sMask, W, H);
+    const cov = res.coverage;
+    resultsText.textContent = `Coverage: ${cov.toFixed(2)}%  (product px=${res.productArea})`;
+    lastResult = {
+      ts: new Date().toISOString(),
+      coverage: cov,
+      productArea: res.productArea,
+      seasoningArea: res.seasoningArea,
+      thresholds
+    };
+    saveBtn.disabled = false;
+    captureBtn.disabled = false;
+  });
+
+  // Save to localStorage (download as JSON + image)
+  saveBtn.addEventListener('click', async () => {
+    if (!lastResult) return;
+    // create composite image (video frame + overlay)
+    const W = hiddenCanvas.width, H = hiddenCanvas.height;
+    const tmpc = document.createElement('canvas');
+    tmpc.width = W; tmpc.height = H;
+    const tctx = tmpc.getContext('2d');
+    // draw the same frame
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const side = Math.min(vw, vh);
+    const sx = Math.max(0, (vw - side) / 2);
+    const sy = Math.max(0, (vh - side) / 2);
+    tctx.drawImage(video, sx, sy, side, side, 0, 0, W, H);
+    // draw overlay (we can draw from maskCanvas scaled down)
+    tctx.drawImage(maskCanvas, 0, 0, W, H);
+    const dataUrl = tmpc.toDataURL('image/jpeg', 0.9);
+    // save in localStorage logs
+    const logs = JSON.parse(localStorage.getItem('seasoning_logs_v1') || '[]');
+    logs.push({ ...lastResult, image: dataUrl });
+    localStorage.setItem('seasoning_logs_v1', JSON.stringify(logs));
+    alert('Saved locally. ' + logs.length + ' entries in local storage.');
+    saveBtn.disabled = true;
+  });
+
+  flipBtn.addEventListener('click', async () => {
+    useFacingMode = (useFacingMode === 'environment') ? 'user' : 'environment';
+    await startCamera();
+  });
+
+  // start camera on load
+  await startCamera();
+
+  // optional: preload last thresholds from localStorage
+  try {
+    const ls = JSON.parse(localStorage.getItem('seasoning_config_v1') || '{}');
+    if (ls.hLow) hLow.value = ls.hLow;
+    if (ls.hHigh) hHigh.value = ls.hHigh;
+    if (ls.sLow) sLow.value = ls.sLow;
+    if (ls.sHigh) sHigh.value = ls.sHigh;
+    if (ls.vLow) vLow.value = ls.vLow;
+    if (ls.vHigh) vHigh.value = ls.vHigh;
+  } catch(e){}
+
+  // save thresholds on change
+  [hLow,hHigh,sLow,sHigh,vLow,vHigh].forEach(el=>{
+    el.addEventListener('change', () => {
+      localStorage.setItem('seasoning_config_v1', JSON.stringify({
+        hLow:hLow.value, hHigh:hHigh.value, sLow:sLow.value, sHigh:sHigh.value, vLow:vLow.value, vHigh:vHigh.value
+      }));
+    });
+  });
+
+})();
+</script>
 </body>
 </html>
+
 
