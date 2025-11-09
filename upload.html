@@ -1,55 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Upload Image — Seasoning</title>
-  <link rel="stylesheet" href="styles.css">
-  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <title>Seasoning Coverage Checker - Upload</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h2 style="text-align:center;margin-top:18px;">Upload Image</h2>
+<h1>Upload & Analyze Image</h1>
 
-<div style="text-align:center;">
+<div class="container">
   <input type="file" id="fileInput" accept="image/*">
+  <div class="imageBox">
+    <img id="uploadedImage">
+    <canvas id="overlayCanvas"></canvas>
+  </div>
+
+  <button class="button" id="analyzeBtn">Analyze</button>
+  <div id="result" class="resultText">Coverage: —</div>
+
+  <button class="button" onclick="window.location='index.html'">Switch to Live Mode</button>
 </div>
 
-<!-- preview + overlay -->
-<div style="position:relative; display:flex; justify-content:center; margin-top:12px;">
-  <img id="previewImg" style="display:none; border-radius:12px;" />
-  <canvas id="overlayCanvas" style="position:absolute; left:50%; transform:translateX(-50%);"></canvas>
-</div>
-
-<div class="controls">
-  <button onclick="location.href='index.html'">⬅ Back</button>
-  <div class="small">Upload a top-down image of a single collet for best accuracy.</div>
-</div>
-
-<div id="result" style="text-align:center;margin-top:12px;font-weight:700">Coverage: —</div>
-
-<script src="analysis.js"></script>
-
+<script src="app.js"></script>
 <script>
-const fileInput = document.getElementById('fileInput');
-const previewImg = document.getElementById('previewImg');
-const overlayCanvas = document.getElementById('overlayCanvas');
-const resultEl = document.getElementById('result');
-
-fileInput.onchange = (e)=>{
-  const file = e.target.files[0];
-  if (!file) return;
-  const url = URL.createObjectURL(file);
-  previewImg.onload = async ()=>{
-    // size overlay to image natural size
-    overlayCanvas.width = previewImg.naturalWidth;
-    overlayCanvas.height = previewImg.naturalHeight;
-    overlayCanvas.style.width = previewImg.clientWidth + 'px';
-    overlayCanvas.style.height = previewImg.clientHeight + 'px';
-    await analyzeElementAndShow(previewImg, overlayCanvas, resultEl);
-  };
-  previewImg.src = url;
-  previewImg.style.display = 'block';
-};
+let img = document.getElementById("uploadedImage");
+document.getElementById("fileInput").onchange = (e)=>{
+  img.src = URL.createObjectURL(e.target.files[0]);
+}
+document.getElementById("analyzeBtn").onclick = () => analyzeImage(img);
 </script>
 
 </body>
