@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h2>Upload Image Seasoning Analysis</h2>
+
+<input type="file" id="upload" accept="image/*">
+
+<img id="preview" />
+
+<canvas id="canvas"></canvas>
+<canvas id="overlay"></canvas>
+
+<div id="coverage">Coverage: —</div>
+
+<a href="capture.html">← Back to Live Camera</a>
+
+<script type="module">
+import { analyzeImage } from "./analysis.js";
+
+const upload = document.getElementById('upload');
+const preview = document.getElementById('preview');
+
+const canvas = document.getElementById('canvas');
+const overlay = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+const octx = overlay.getContext('2d');
+const coverageLbl = document.getElementById('coverage');
+
+upload.onchange = (e)=>{
+  const imgURL = URL.createObjectURL(e.target.files[0]);
+  const img = new Image();
+  img.onload = ()=>{
+    preview.src = imgURL;
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+    overlay.width = img.width;
+    overlay.height = img.height;
+
+    ctx.drawImage(img,0,0);
+    analyzeImage(ctx,octx,img.width,img.height,coverageLbl);
+  };
+  img.src = imgURL;
+};
+</script>
+
+</body>
+</html>
