@@ -1,20 +1,34 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Seasoning Coverage — Home</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collet Seasoning Detector</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="home">
-    <h1>Seasoning Coverage Analyzer</h1>
-    <p class="lead">Choose mode — Live camera (shop floor) or Upload image (QC).</p>
-    <div class="buttons">
-      <a class="btn" href="capture.html">📷 Live Capture</a>
-      <a class="btn" href="upload.html">🖼 Upload & Analyze</a>
+  <div class="container">
+    <h1>Mad Angle Collet Seasoning Detector</h1>
+
+    <div class="upload-section">
+      <h2>Upload Image</h2>
+      <input type="file" id="fileInput" accept="image/*">
+      <button id="analyzeBtn">Analyze</button>
     </div>
-    <p class="note">Top-down photos give best results. Rotate so the chip sits centrally.</p>
+
+    <div class="live-section">
+      <h2>Live Camera Capture</h2>
+      <video id="video" autoplay playsinline width="320" height="240"></video>
+      <button id="captureBtn">Capture & Analyze</button>
+    </div>
+
+    <div class="result-section">
+      <h2>Result</h2>
+      <div id="percentage">Seasoning %: --</div>
+      <canvas id="canvas"></canvas>
+    </div>
   </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
-
