@@ -4,32 +4,40 @@
 <meta charset="utf-8">
 <title>Seasoning Coverage Checker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
-body{margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px;background:#fff}
-h1{font-size:20px;margin-bottom:12px}
-.cameraBox{position:relative;width:92vw;max-width:420px;aspect-ratio:1/1.2;background:#000;border-radius:12px;overflow:hidden}
-video, img{width:100%;height:100%;object-fit:cover;display:block}
-.controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-button{background:#ff6a00;color:#fff;padding:10px 16px;border:none;border-radius:8px;font-weight:bold}
-#coverage{margin-top:14px;font-size:18px;font-weight:600}
-#overlayCanvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+body { margin:0; padding:16px; font-family:Arial; text-align:center; background:#fff; }
+h1 { margin-bottom:12px; font-size:20px; }
+
+#container { position:relative; width:92vw; max-width:420px; aspect-ratio:1/1; margin:auto;
+             background:#000; border-radius:12px; overflow:hidden; }
+
+video, #uploadedImg { width:100%; height:100%; object-fit:cover; display:block; }
+canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+
+.controls { margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+button, label { background:#ff6a00; border:none; padding:10px 16px; color:white;
+                border-radius:8px; cursor:pointer; font-weight:bold; }
+label { background:#444; }
+
+#coverage { margin-top:14px; font-size:18px; font-weight:bold; }
+#uploadedImg { display:none; }
 </style>
 </head>
+
 <body>
 
 <h1>Seasoning Coverage Checker</h1>
 
-<div class="cameraBox">
+<div id="container">
   <video id="video" autoplay playsinline muted></video>
+  <img id="uploadedImg">
   <canvas id="overlayCanvas"></canvas>
 </div>
 
 <div class="controls">
   <button id="captureBtn">Capture & Analyze</button>
-  <label style="background:#ddd;color:#000;padding:10px 16px;border-radius:8px;">
-    Upload Image
-    <input type="file" id="fileInput" accept="image/*" style="display:none;">
-  </label>
+  <label>Upload Image<input type="file" id="fileInput" accept="image/*" style="display:none"></label>
 </div>
 
 <div id="coverage">Coverage: —</div>
@@ -37,70 +45,81 @@ button{background:#ff6a00;color:#fff;padding:10px 16px;border:none;border-radius
 <canvas id="processCanvas" style="display:none"></canvas>
 
 <script>
-// Start camera
-(async () => {
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
-    video.srcObject = stream;
-  }catch(e){
-    coverage.textContent = "Allow camera access in browser settings.";
-  }
-})();
+const video = document.getElementById("video");
+const uploadedImg = document.getElementById("uploadedImg");
+const overlayCanvas = document.getElementById("overlayCanvas");
+const processCanvas = document.getElementById("processCanvas");
 
-// Color mask: detect orange/red seasoning
+// Start camera
+navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } })
+.then(s => video.srcObject = s)
+.catch(() => coverage.textContent = "⚠ Allow camera permission.");
+
+// Seasoning detection function
 function isSeasoned(r,g,b){
-  return (r > 150 && g < r*0.85 && b < r*0.65);
+  return (r > 120 && r > g + 15 && r > b + 15) ||
+         ((r+g > 210) && (r/g < 2.2) && (r/b > 1.2));
+}
+
+// Unseasoned (white)
+function isUnseasoned(r,g,b){
+  let avg = (r+g+b)/3;
+  return avg > 160 && (Math.max(r,g,b) - Math.min(r,g,b) < 25);
 }
 
 function analyze(source){
-  const canvas = processCanvas;
-  const ctx = canvas.getContext("2d");
-  canvas.width = source.width;
-  canvas.height = source.height;
-  ctx.drawImage(source,0,0,canvas.width,canvas.height);
+  const p = processCanvas, ctx = p.getContext("2d");
+  p.width = source.videoWidth || source.width;
+  p.height = source.videoHeight || source.height;
 
-  const img = ctx.getImageData(0,0,canvas.width,canvas.height);
-  const d = img.data;
+  ctx.drawImage(source,0,0,p.width,p.height);
+  const img = ctx.getImageData(0,0,p.width,p.height);
+  let d = img.data;
 
-  let product = 0, seasoning = 0;
-  for(let i=0;i<d.length;i+=4){
-    const r=d[i],g=d[i+1],b=d[i+2];
-    // ignore background (very bright / very dark)
-    if(r+g+b < 80 || r+g+b > 700) continue;
-    product++;
-    if(isSeasoned(r,g,b)) seasoning++;
-  }
+  let total=0, seasoned=0;
 
-  let pct = product? (seasoning/product)*100 : 0;
-  coverage.textContent = `Coverage: ${pct.toFixed(1)}%`;
-
-  // Draw overlay
-  const octx = overlayCanvas.getContext("2d");
-  overlayCanvas.width = source.width;
-  overlayCanvas.height = source.height;
-  octx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
-  octx.fillStyle="rgba(255,0,0,0.5)";
+  const o = overlayCanvas, octx = o.getContext("2d");
+  o.width=p.width; o.height=p.height;
+  octx.clearRect(0,0,o.width,o.height);
 
   for(let i=0;i<d.length;i+=4){
-    const idx=i/4;
-    const x=idx%canvas.width, y=Math.floor(idx/canvas.width);
-    const r=d[i],g=d[i+1],b=d[i+2];
+    let r=d[i], g=d[i+1], b=d[i+2];
+    let x = (i/4) % p.width;
+    let y = Math.floor((i/4) / p.width);
+
     if(isSeasoned(r,g,b)){
+      seasoned++; total++;
+      octx.fillStyle="rgba(255,0,0,0.55)";
+      octx.fillRect(x,y,1,1);
+    }
+    else if(isUnseasoned(r,g,b)){
+      total++;
+      octx.fillStyle="rgba(0,120,255,0.55)";
       octx.fillRect(x,y,1,1);
     }
   }
+
+  let pct = total ? (seasoned/total)*100 : 0;
+  coverage.textContent = "Coverage: " + pct.toFixed(1) + "%";
 }
 
-// Camera capture
-captureBtn.onclick = () => analyze(video);
+// Capture button
+captureBtn.onclick = () => {
+  uploadedImg.style.display="none";
+  video.style.display="block";
+  analyze(video);
+};
 
-// Upload from gallery
+// Upload image
 fileInput.onchange = e => {
-  const img = new Image();
-  img.onload = ()=> analyze(img);
-  img.src = URL.createObjectURL(e.target.files[0]);
+  const fileURL = URL.createObjectURL(e.target.files[0]);
+  uploadedImg.src = fileURL;
+  uploadedImg.onload = () => {
+    video.style.display="none";
+    uploadedImg.style.display="block";
+    analyze(uploadedImg);
+  };
 };
 </script>
-
 </body>
 </html>
