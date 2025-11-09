@@ -1,25 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Seasoning Coverage Analyzer</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Seasoning Coverage Checker - Live</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div class="container">
-  <h1 class="title">Seasoning Coverage Analyzer</h1>
-  <p class="subtitle">Choose mode — Live capture for shop-floor checks, or upload an image for offline testing.</p>
+<h1>Live Seasoning Coverage</h1>
 
-  <div class="button-group">
-    <button class="action-btn" onclick="location.href='capture.html'">📷 Live Camera Analysis</button>
-    <button class="action-btn" onclick="location.href='upload.html'">🖼️ Upload & Analyze Image</button>
+<div class="container">
+  <div class="cameraBox">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlayCanvas"></canvas>
   </div>
 
-  <footer style="margin-top:28px;color:#666;font-size:13px;">
-    Built for factory QC — top-down images give best results.
-  </footer>
+  <button class="button" id="captureBtn">Capture & Analyze</button>
+  <div id="result" class="resultText">Coverage: —</div>
+
+  <button class="button" onclick="window.location='upload.html'">Switch to Upload Mode</button>
 </div>
+
+<script src="app.js"></script>
+<script>
+startCamera();
+document.getElementById("captureBtn").onclick = analyzeLive;
+</script>
 
 </body>
 </html>
