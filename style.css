@@ -1,0 +1,42 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #fafafa;
+}
+
+#main {
+  position: relative;
+  width: 90vw;
+  max-width: 400px;
+  margin: 10px auto;
+}
+
+video, img, canvas {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #aaa;
+}
+
+#controls {
+  margin-top: 10px;
+}
+
+button {
+  margin: 5px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #007bff;
+  color: white;
+  font-size: 15px;
+}
+
+input {
+  margin-top: 10px;
+}
+
+#results {
+  margin-top: 12px;
+  font-size: 17px;
+}
