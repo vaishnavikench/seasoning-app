@@ -1,42 +1,33 @@
 body {
-  margin: 0;
   font-family: Arial, sans-serif;
   text-align: center;
-  background: #fafafa;
+  margin: 0;
+  background: #ffffff;
 }
 
-#main {
-  position: relative;
+#video, #preview {
   width: 90vw;
-  max-width: 400px;
-  margin: 10px auto;
+  max-width: 420px;
+  border-radius: 12px;
+  margin-top: 12px;
 }
 
-video, img, canvas {
-  width: 100%;
-  border-radius: 10px;
-  border: 1px solid #aaa;
-}
-
-#controls {
-  margin-top: 10px;
+canvas {
+  display: none;
 }
 
 button {
-  margin: 5px;
-  padding: 10px 14px;
-  border-radius: 6px;
-  border: none;
-  background: #007bff;
-  color: white;
-  font-size: 15px;
-}
-
-input {
-  margin-top: 10px;
-}
-
-#results {
   margin-top: 12px;
-  font-size: 17px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #ff6a00;
+  color: #fff;
+  font-weight: 600;
+}
+
+#coverage {
+  margin-top: 14px;
+  font-size: 20px;
+  font-weight: bold;
 }
