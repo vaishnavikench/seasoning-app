@@ -8,8 +8,8 @@
 body { font-family: system-ui, -apple-system, Roboto, "Helvetica Neue", Arial; margin:0; padding:12px; background:#fafafa; color:#111; }
 h1 { font-size:18px; margin:0 0 8px 0; text-align:center; }
 .top { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
-video, .previewCanvas { width: 48vw; max-width:260px; border-radius:8px; background:#222; }
-#results { margin-top:12px; font-weight:700; text-align:center; }
+video, .previewCanvas { width: 48vw; max-width:260px; border-radius:8px; background:#222; display:block; }
+#results { margin-top:12px; font-weight:700; text-align:center; font-size:16px; }
 button { padding:8px 12px; border-radius:6px; border:none; background:#0b63d6; color:white; font-weight:600; margin:4px; }
 button:disabled { background:#9bbcf0; }
 .footer { margin-top:14px; font-size:12px; color:#555; text-align:center; }
@@ -33,7 +33,7 @@ button:disabled { background:#9bbcf0; }
 </div>
 
 <div id="results">Coverage: —</div>
-<div class="footer">Detection runs fully on-device. Red = seasoned, blue = unseasoned.</div>
+<div class="footer">Detection runs fully on-device. Red = seasoned, Blue = unseasoned, Green outline = detected triangle.</div>
 
 <script async src="https://docs.opencv.org/4.8.1/opencv.js"></script>
 <script>
@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBtn = document.getElementById('uploadBtn');
   const fileInput = document.getElementById('fileInput');
   const resultsText = document.getElementById('results');
+
   let stream = null;
 
   function startCamera() {
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let src = cv.imread(canvas);
     let dst = src.clone();
 
+    // 1. Triangle detection
     let gray = new cv.Mat();
     let blur = new cv.Mat();
     let edges = new cv.Mat();
@@ -103,9 +105,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // 2. Mask triangle
     let mask = new cv.Mat.zeros(H,W,cv.CV_8UC1);
     cv.fillPoly(mask, new cv.MatVector([triangleContour]), new cv.Scalar(255));
 
+    // 3. HSV seasoning detection
     let hsv = new cv.Mat();
     cv.cvtColor(src, hsv, cv.COLOR_RGBA2HSV);
     let seasonedMask = new cv.Mat.zeros(H,W,cv.CV_8UC1);
@@ -123,30 +127,53 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 4. Compute coverage %
     let total = cv.countNonZero(mask);
     let seasoned = cv.countNonZero(seasonedMask);
     let coverage = (seasoned/total*100).toFixed(2);
     resultsText.textContent = `Coverage: ${coverage}%`;
 
+    // 5. Overlay: Red/Blue + Green triangle outline
+    let overlay = ctx.getImageData(0,0,W,H);
     for(let i=0;i<H;i++){
       for(let j=0;j<W;j++){
+        let idx = (i*W + j)*4;
         if(mask.ucharPtr(i,j)[0]===0) continue;
-        let px = dst.ucharPtr(i,j);
         if(seasonedMask.ucharPtr(i,j)[0]!==0){
-          px[0]=255; px[1]=0; px[2]=0; px[3]=255;
+          overlay.data[idx] = 255;   // R
+          overlay.data[idx+1] = 0;   // G
+          overlay.data[idx+2] = 0;   // B
+          overlay.data[idx+3] = 180; // alpha
         } else {
-          px[0]=0; px[1]=0; px[2]=255; px[3]=255;
+          overlay.data[idx] = 0;
+          overlay.data[idx+1] = 0;
+          overlay.data[idx+2] = 255;
+          overlay.data[idx+3] = 180;
         }
       }
     }
+    ctx.putImageData(overlay,0,0);
 
-    cv.imshow(canvas,dst);
+    // Draw green outline
+    ctx.strokeStyle = 'lime';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let pts = [];
+    for(let i=0;i<triangleContour.rows;i++){
+      pts.push({x:triangleContour.intPtr(i,0)[0], y:triangleContour.intPtr(i,0)[1]});
+    }
+    ctx.moveTo(pts[0].x, pts[0].y);
+    ctx.lineTo(pts[1].x, pts[1].y);
+    ctx.lineTo(pts[2].x, pts[2].y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Cleanup
     src.delete(); dst.delete(); gray.delete(); blur.delete(); edges.delete(); contours.delete(); hierarchy.delete();
     mask.delete(); hsv.delete(); seasonedMask.delete(); triangleContour.delete();
   }
 
   captureBtn.addEventListener('click', () => analyzeImage(video));
-
   uploadBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => {
     if(e.target.files.length===0) return;
@@ -159,5 +186,3 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
-
-
