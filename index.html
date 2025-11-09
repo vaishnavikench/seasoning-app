@@ -1,34 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Collet Seasoning Detector</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collet Seasoning Detector</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <h1>Mad Angle Collet Seasoning Detector</h1>
+<div class="container">
+  <h1>Mad Angle Collet Seasoning Detector</h1>
 
-    <div class="upload-section">
-      <h2>Upload Image</h2>
-      <input type="file" id="fileInput" accept="image/*">
-      <button id="analyzeBtn">Analyze</button>
-    </div>
-
-    <div class="live-section">
-      <h2>Live Camera Capture</h2>
-      <video id="video" autoplay playsinline width="320" height="240"></video>
-      <button id="captureBtn">Capture & Analyze</button>
-    </div>
-
-    <div class="result-section">
-      <h2>Result</h2>
-      <div id="percentage">Seasoning %: --</div>
-      <canvas id="canvas"></canvas>
-    </div>
+  <div class="live-section">
+    <h2>Live Camera Capture</h2>
+    <video id="video" autoplay playsinline width="320" height="240"></video>
+    <button id="captureBtn">Capture & Analyze</button>
   </div>
 
-  <script src="script.js"></script>
+  <div class="result-section">
+    <h2>Result</h2>
+    <div id="percentage">Seasoning %: --</div>
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<script async src="https://docs.opencv.org/4.8.1/opencv.js" onload="onOpenCvReady();"></script>
+<script src="script.js"></script>
 </body>
 </html>
