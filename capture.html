@@ -1,45 +1,77 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="style.css">
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Capture — Seasoning</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- OpenCV.js (stable CDN) -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 </head>
 <body>
-<h2>Live Seasoning Coverage</h2>
 
-<video id="video" autoplay playsinline muted></video>
-<canvas id="canvas"></canvas>
-<canvas id="overlay"></canvas>
+<h2 style="text-align:center;margin-top:18px;">Live Capture</h2>
 
-<button id="captureBtn">Capture & Analyze</button>
+<!-- video preview + overlay canvas -->
+<div style="position:relative; display:flex; justify-content:center;">
+  <video id="cameraView" autoplay playsinline muted></video>
+  <canvas id="overlayCanvas" style="position:absolute; left:50%; transform:translateX(-50%); top:0;"></canvas>
+</div>
 
-<div id="coverage">Coverage: —</div>
+<div class="controls">
+  <button id="captureBtn">Capture & Analyze</button>
+  <button onclick="location.href='index.html'">⬅ Back</button>
+  <div class="small">Tip: Hold phone top-down over a single collet within the frame.</div>
+</div>
 
-<a href="upload.html">Go to Upload Image →</a>
+<div id="result" style="text-align:center;margin-top:12px;font-weight:700">Coverage: —</div>
 
-<script type="module">
-import { analyzeImage } from "./analysis.js";
+<!-- shared analysis logic -->
+<script src="analysis.js"></script>
 
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const overlay = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
-const octx = overlay.getContext('2d');
-const coverageLbl = document.getElementById('coverage');
+<script>
+const video = document.getElementById('cameraView');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const resultEl = document.getElementById('result');
 
-navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
-.then(stream => video.srcObject = stream);
+// start camera
+async function startCamera(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: "environment" }, audio:false });
+    video.srcObject = stream;
+    await video.play();
+    // size overlay to video
+    function resizeOverlay(){
+      overlayCanvas.width = video.videoWidth;
+      overlayCanvas.height = video.videoHeight;
+      overlayCanvas.style.width = video.clientWidth + 'px';
+      overlayCanvas.style.height = video.clientHeight + 'px';
+      overlayCanvas.style.left = video.offsetLeft + video.clientWidth/2 + 'px'; // center correction handled by css transform
+    }
+    video.addEventListener('loadedmetadata', resizeOverlay);
+    window.addEventListener('resize', resizeOverlay);
+  } catch(e){
+    alert("Camera access denied or not available. Allow camera in site settings.");
+  }
+}
 
-document.getElementById("captureBtn").onclick = () => {
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  overlay.width = canvas.width;
-  overlay.height = canvas.height;
+startCamera();
 
-  ctx.drawImage(video,0,0);
-  analyzeImage(ctx,octx,canvas.width,canvas.height,coverageLbl);
-};
+// capture handler
+captureBtn.addEventListener('click', async ()=>{
+  // ensure video is ready
+  if (!video.videoWidth || !video.videoHeight){ alert("Camera not ready"); return; }
+
+  // draw video frame to a temporary canvas and analyze
+  const tmp = document.createElement('canvas');
+  tmp.width = video.videoWidth; tmp.height = video.videoHeight;
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(video, 0, 0, tmp.width, tmp.height);
+
+  // pass image element (canvas) to analyzer
+  await analyzeElementAndShow(tmp, overlayCanvas, resultEl);
+});
 </script>
 
 </body>
 </html>
+
